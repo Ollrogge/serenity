@@ -54,7 +54,7 @@ ErrorOr<NonnullLockRefPtr<PageDirectory>> PageDirectory::try_create_for_userspac
 {
     auto directory = TRY(adopt_nonnull_lock_ref_or_enomem(new (nothrow) PageDirectory));
 
-    directory->m_pml4t = TRY(MM.allocate_physical_page());
+    directory->m_root_table = TRY(MM.allocate_physical_page());
 
     directory->m_directory_table = TRY(MM.allocate_physical_page());
     auto kernel_pd_index = (kernel_mapping_base >> 30) & 0x1ffu;
@@ -67,8 +67,8 @@ ErrorOr<NonnullLockRefPtr<PageDirectory>> PageDirectory::try_create_for_userspac
 
     {
         InterruptDisabler disabler;
-        auto& table = *(PageDirectoryPointerTable*)MM.quickmap_page(*directory->m_pml4t);
-        table.raw[0] = (FlatPtr)directory->m_directory_table->paddr().as_ptr() | 7;
+        auto& table = *(PageDirectoryPointerTable*)MM.quickmap_page(*directory->m_root_table);
+        table.raw[0] = (FlatPtr)directory->m_directory_table->paddr().as_ptr() | TABLE_DESCRIPTOR;
         MM.unquickmap_page();
     }
 
@@ -77,33 +77,9 @@ ErrorOr<NonnullLockRefPtr<PageDirectory>> PageDirectory::try_create_for_userspac
         auto& table = *(PageDirectoryPointerTable*)MM.quickmap_page(*directory->m_directory_table);
         for (size_t i = 0; i < sizeof(m_directory_pages) / sizeof(m_directory_pages[0]); i++) {
             if (directory->m_directory_pages[i]) {
-                table.raw[i] = (FlatPtr)directory->m_directory_pages[i]->paddr().as_ptr() | 7;
+                table.raw[i] = (FlatPtr)directory->m_directory_pages[i]->paddr().as_ptr() | PAGE_DESCRIPTOR;
             }
         }
-
-        // 2 ** MAXPHYADDR - 1
-        // Where MAXPHYADDR = physical_address_bit_width
-        u64 max_physical_address = (1ULL << Processor::current().physical_address_bit_width()) - 1;
-
-        // bit 63 = no execute
-        // bit 7 = page size
-        // bit 5 = accessed
-        // bit 4 = cache disable
-        // bit 3 = write through
-        // bit 2 = user/supervisor
-        // bit 1 = read/write
-        // bit 0 = present
-        constexpr u64 pdpte_bit_flags = 0x80000000000000BF;
-
-        // This is to notify us of bugs where we're:
-        // 1. Going over what the processor is capable of.
-        // 2. Writing into the reserved bits (51:MAXPHYADDR), where doing so throws a GPF
-        //    when writing out the PDPT pointer to CR3.
-        // The reason we're not checking the page directory's physical address directly is because
-        // we're checking for sign extension when putting it into a PDPTE. See issue #4584.
-        for (auto table_entry : table.raw)
-            VERIFY((table_entry & ~pdpte_bit_flags) <= max_physical_address);
-
         MM.unquickmap_page();
     }
 
@@ -117,7 +93,7 @@ UNMAP_AFTER_INIT void PageDirectory::allocate_kernel_directory()
 {
     // Adopt the page tables already set up by boot.S
     dmesgln("MM: boot_pml4t @ {}", boot_pml4t);
-    m_pml4t = PhysicalPage::create(boot_pml4t, MayReturnToFreeList::No);
+    m_root_table = PhysicalPage::create(boot_pml4t, MayReturnToFreeList::No);
     dmesgln("MM: boot_pdpt @ {}", boot_pdpt);
     dmesgln("MM: boot_pd0 @ {}", boot_pd0);
     dmesgln("MM: boot_pd_kernel @ {}", boot_pd_kernel);
@@ -128,7 +104,7 @@ UNMAP_AFTER_INIT void PageDirectory::allocate_kernel_directory()
 
 PageDirectory::~PageDirectory()
 {
-    if (is_cr3_initialized()) {
+    if (is_root_table_initialized()) {
         deregister_page_directory(this);
     }
 }

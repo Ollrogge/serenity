@@ -189,14 +189,14 @@ public:
 
     void allocate_kernel_directory();
 
-    FlatPtr cr3() const
+    FlatPtr ttbr0() const
     {
-        return m_pml4t->paddr().get();
+        return m_root_table->paddr().get();
     }
 
-    bool is_cr3_initialized() const
+    bool is_root_table_initialized() const
     {
-        return m_pml4t;
+        return m_root_table;
     }
 
     AddressSpace* address_space() { return m_space; }
@@ -215,7 +215,7 @@ private:
     static void deregister_page_directory(PageDirectory* directory);
 
     AddressSpace* m_space { nullptr };
-    RefPtr<PhysicalPage> m_pml4t;
+    RefPtr<PhysicalPage> m_root_table;
     RefPtr<PhysicalPage> m_directory_table;
     RefPtr<PhysicalPage> m_directory_pages[512];
     RecursiveSpinlock<LockRank::None> m_lock {};
