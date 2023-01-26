@@ -60,6 +60,28 @@ void GPIO::set_pin_function(unsigned pin_number, PinFunction function)
     m_registers->function_select[function_select_index] = function_bits;
 }
 
+void GPIO::set_pin_high_detect_enable(unsigned pin_number, bool enable)
+{
+    u32 data[2] = {};
+    data[0] = m_registers->high_detect_enable.bits[0];
+    data[1] = m_registers->high_detect_enable.bits[1];
+
+    if (enable) {
+        if (pin_number < 32)
+            data[0] |= (1 << pin_number);
+        else
+            data[1] |= (1 << (pin_number - 32));
+    } else {
+        if (pin_number < 32)
+            data[0] &= ~(1 << pin_number);
+        else
+            data[1] &= ~(1 << (pin_number - 32));
+    }
+
+    m_registers->high_detect_enable.bits[0] = data[0];
+    m_registers->high_detect_enable.bits[1] = data[1];
+}
+
 void GPIO::internal_enable_pins(u32 enable[2], PullUpDownState state)
 {
     // Section "GPIO Pull-up/down Clock Registers (GPPUDCLKn)":

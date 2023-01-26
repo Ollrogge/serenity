@@ -30,6 +30,7 @@ public:
     static GPIO& the();
 
     void set_pin_function(unsigned pin_number, PinFunction);
+    void set_pin_high_detect_enable(unsigned pin_number, bool);
 
     enum class PullUpDownState {
         Disable = 0,
