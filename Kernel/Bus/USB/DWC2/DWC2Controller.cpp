@@ -174,6 +174,8 @@ ErrorOr<NonnullLockRefPtr<DWC2Controller>> DWC2Controller::try_to_initialize()
 
 ErrorOr<void> DWC2Controller::initialize()
 {
+    // TODO: Sent Power-up mailbox message to actually power the USB IF, without this it will not work on real hardware!
+
     if (m_csr_regs->core_global_regs.GSNPSID.id != 0x4f54) {
         dbgln("DWC2Controller: Unknown DWC Core OTG: 0x{:x}", (u32)m_csr_regs->core_global_regs.GSNPSID.raw);
         return ENOTSUP;

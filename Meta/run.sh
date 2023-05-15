@@ -47,7 +47,7 @@ if [ "$(uname)" = "Darwin" ]; then
 fi
 
 # Prepend the toolchain qemu directory so we pick up QEMU from there
-PATH="$SCRIPT_DIR/../Toolchain/Local/qemu/bin:$PATH"
+# PATH="$SCRIPT_DIR/../Toolchain/Local/qemu/bin:$PATH"
 
 # Also prepend the x86_64 toolchain directory because that's where most
 # people will have their QEMU binaries if they built them before the
