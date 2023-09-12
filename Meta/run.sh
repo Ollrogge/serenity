@@ -3,6 +3,8 @@
 
 set -e
 
+set -x
+
 die() {
     echo "die: $*"
     exit 1
@@ -349,6 +351,7 @@ $SERENITY_BOOT_DRIVE
 -name SerenityOS
 -d guest_errors
 -usb
+-device usb-kbd
 $SERENITY_SPICE_SERVER_CHARDEV
 "
 

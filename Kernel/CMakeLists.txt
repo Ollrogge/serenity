@@ -32,6 +32,7 @@ set(KERNEL_SOURCES
     Bus/PCI/Device.cpp
     Bus/PCI/DeviceIdentifier.cpp
     Bus/USB/DWC2/DWC2Controller.cpp
+    Bus/USB/DWC2/DWC2RootHub.cpp
     Bus/USB/UHCI/UHCIController.cpp
     Bus/USB/UHCI/UHCIRootHub.cpp
     Bus/USB/Drivers/HID/MouseDriver.cpp
