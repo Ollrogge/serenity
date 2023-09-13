@@ -67,7 +67,7 @@ static_assert(AssertSize<CoreGlobalRegisters, 1024>()); // 1KiB
 struct HostChannelRegisters {
     union {
         struct {
-            u32 maximum_packet_size : 10;
+            u32 maximum_packet_size : 11;
             u32 endpoint_number : 4;
             u32 endpoint_direction : 1;
             u32 _reserved0 : 1;
@@ -240,6 +240,13 @@ ErrorOr<void> DWC2Controller::initialize()
     TRY(m_root_hub->setup({}));
 
     // TODO: Call this in a loop on a seperate thread.
+    // while (true)
+    m_root_hub->check_for_port_updates();
+
+    m_root_hub->check_for_port_updates();
+
+    m_root_hub->check_for_port_updates();
+
     m_root_hub->check_for_port_updates();
 
     return {};
@@ -272,7 +279,7 @@ ErrorOr<size_t> DWC2Controller::submit_control_transfer(Transfer& transfer)
     Pipe& pipe = transfer.pipe(); // Short circuit the pipe related to this transfer
     bool direction_in = (transfer.request().request_type & USB_REQUEST_TRANSFER_DIRECTION_DEVICE_TO_HOST) == USB_REQUEST_TRANSFER_DIRECTION_DEVICE_TO_HOST;
 
-    dbgln_if(DWC2_DEBUG, "UHCI: Received control transfer for address {}. Root Hub is at address {}.", pipe.device_address(), m_root_hub->device_address());
+    dbgln_if(DWC2_DEBUG, "DWC2: Received control transfer for address {}. Root Hub is at address {}. Pipe type is {}", pipe.device_address(), m_root_hub->device_address(), to_underlying(pipe.type()));
 
     // Short-circuit the root hub.
     if (pipe.device_address() == m_root_hub->device_address())
@@ -284,8 +291,7 @@ ErrorOr<size_t> DWC2Controller::submit_control_transfer(Transfer& transfer)
 
     m_csr_regs->host_mode_regs.HC[channel].HCCHAR.device_address = pipe.device_address();
     m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_number = pipe.endpoint_address();
-    // VERIFY(pipe.direction() != Pipe::Direction::Bidirectional);
-    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_direction = direction_in ? 1 : 0;
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_direction = 1; // SETUP is always out! However that doesn't matter, also not on real hardware?
     m_csr_regs->host_mode_regs.HC[channel].HCCHAR.low_speed_device = pipe.device_speed() == Pipe::DeviceSpeed::LowSpeed ? 1 : 0;
     m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_type = to_underlying(pipe.type());
     m_csr_regs->host_mode_regs.HC[channel].HCCHAR.maximum_packet_size = pipe.max_packet_size();
@@ -294,29 +300,88 @@ ErrorOr<size_t> DWC2Controller::submit_control_transfer(Transfer& transfer)
 
     // FIXME: Split control
 
+    // First we send the SETUP packet, which are always the first 8 bytes in the buffer of the transfer.
     int packet_id = 0b11; // setup
 
     m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.raw = 0;
     m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.pid = packet_id;
-    m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.transfer_size = transfer.transfer_data_size();
+    m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.transfer_size = sizeof(USBRequestData);
 
-    if (pipe.device_speed() == Pipe::DeviceSpeed::LowSpeed)
-        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = (transfer.transfer_data_size() + 7) / 8;
-    else
-        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = (transfer.transfer_data_size() + pipe.max_packet_size()) / pipe.max_packet_size();
-
-    if (m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count == 0) {
-        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = 1;
-    }
+    m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = 1;
 
     m_csr_regs->host_mode_regs.HC[channel].HCDMA = transfer.buffer_physical().get();
 
     m_csr_regs->host_mode_regs.HC[channel].HCCHAR.multi_count = 1;
     m_csr_regs->host_mode_regs.HC[channel].HCCHAR.channel_enable = 1;
 
-    u32 hcint = m_csr_regs->host_mode_regs.HC[channel].HCINT;
-    dbgln("HCINT: 0x{:x}", hcint);
+    // TODO: While not transfer complete wait (or something)
+    // u32 hcint = m_csr_regs->host_mode_regs.HC[channel].HCINT;
+    // dbgln("HCINT: 0x{:x}", hcint);
+
+    // dbgln("Packet count after sending: {}", (u32)m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count);
     // if (m_csr_regs->host_mode_regs.HC[channel].HCINT)
+
+    if (transfer.transfer_data_size() > 0) {
+        // Now comes the data packets
+
+        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_direction = direction_in ? 1 : 0;
+
+        packet_id = 0b10; // data1
+
+        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.raw = 0;
+        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.pid = packet_id;
+        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.transfer_size = transfer.transfer_data_size();
+
+        if (pipe.device_speed() == Pipe::DeviceSpeed::LowSpeed)
+            m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = (transfer.transfer_data_size() + 7) / 8;
+        else
+            m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = (transfer.transfer_data_size() + pipe.max_packet_size() - 1) / pipe.max_packet_size();
+
+        if (m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count == 0) {
+            m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = 1;
+        }
+
+        u32 packet = 0;
+        do {
+            m_csr_regs->host_mode_regs.HC[channel].HCDMA = transfer.buffer_physical().offset(sizeof(USBRequestData)).offset(packet).get();
+
+            m_csr_regs->host_mode_regs.HC[channel].HCCHAR.multi_count = 1;
+            m_csr_regs->host_mode_regs.HC[channel].HCCHAR.channel_enable = 1;
+
+            // hcint = m_csr_regs->host_mode_regs.HC[channel].HCINT;
+            // dbgln("HCINT: 0x{:x}", hcint);
+
+            // dbgln("Packet count after sending: {}", (u32)m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count);
+            packet = transfer.transfer_data_size() - m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.transfer_size;
+        } while ((u32)m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count > 0);
+    }
+
+    // Then we need the status packet (which has zero size (?))
+    packet_id = 0b10; // data1
+
+    m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.raw = 0;
+    m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.pid = packet_id;
+    m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.transfer_size = 0;
+
+    if (pipe.device_speed() == Pipe::DeviceSpeed::LowSpeed)
+        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = 0;
+    else
+        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = 0;
+
+    if (m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count == 0) {
+        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = 1;
+    }
+
+    // Does the address matter if the length is zero?
+    m_csr_regs->host_mode_regs.HC[channel].HCDMA = transfer.buffer_physical().offset(sizeof(USBRequestData)).get();
+
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.multi_count = 1;
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.channel_enable = 1;
+
+    // hcint = m_csr_regs->host_mode_regs.HC[channel].HCINT;
+    // dbgln("HCINT: 0x{:x}", hcint);
+
+    // dbgln("Packet count after sending: {}", (u32)m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count);
 
     (void)direction_in;
     // TransferDescriptor* setup_td = create_transfer_descriptor(pipe, PacketID::SETUP, sizeof(USBRequestData));

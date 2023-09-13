@@ -3,7 +3,7 @@
 
 set -e
 
-set -x
+# set -x
 
 die() {
     echo "die: $*"
@@ -49,7 +49,7 @@ if [ "$(uname)" = "Darwin" ]; then
 fi
 
 # Prepend the toolchain qemu directory so we pick up QEMU from there
-# PATH="$SCRIPT_DIR/../Toolchain/Local/qemu/bin:$PATH"
+PATH="$SCRIPT_DIR/../Toolchain/Local/qemu/bin:$PATH"
 
 # Also prepend the x86_64 toolchain directory because that's where most
 # people will have their QEMU binaries if they built them before the
@@ -352,8 +352,13 @@ $SERENITY_BOOT_DRIVE
 -d guest_errors
 -usb
 -device usb-kbd
+-device usb-mouse
 $SERENITY_SPICE_SERVER_CHARDEV
 "
+# -trace "usb_dwc2_update_irq" -trace "usb_dwc2_raise_global_irq" -trace "usb_dwc2_lower_global_irq" -trace "usb_dwc2_raise_host_irq" -trace "usb_dwc2_lower_host_irq" -trace "usb_dwc2_bus_start" -trace "usb_dwc2_bus_stop" -trace "usb_dwc2_find_device" -trace "usb_dwc2_port_disabled" -trace "usb_dwc2_device_found" -trace "usb_dwc2_device_not_found" -trace "usb_dwc2_handle_packet" -trace "usb_dwc2_memory_read" -trace "usb_dwc2_packet_status" -trace "usb_dwc2_packet_error" -trace "usb_dwc2_async_packet" -trace "usb_dwc2_memory_write" -trace "usb_dwc2_packet_done" -trace "usb_dwc2_packet_next" -trace "usb_dwc2_attach" -trace "usb_dwc2_attach_speed" -trace "usb_dwc2_detach" -trace "usb_dwc2_child_detach" -trace "usb_dwc2_wakeup" -trace "usb_dwc2_async_packet_complete" -trace "usb_dwc2_work_bh" -trace "usb_dwc2_work_bh_service" -trace "usb_dwc2_work_bh_next" -trace "usb_dwc2_enable_chan" -trace "usb_dwc2_glbreg_read" -trace "usb_dwc2_glbreg_write" -trace "usb_dwc2_fszreg_read" -trace "usb_dwc2_fszreg_write" -trace "usb_dwc2_hreg0_read" -trace "usb_dwc2_hreg0_write" -trace "usb_dwc2_hreg1_read" -trace "usb_dwc2_hreg1_write" -trace "usb_dwc2_pcgreg_read" -trace "usb_dwc2_pcgreg_write" -trace "usb_dwc2_hreg2_read" -trace "usb_dwc2_hreg2_write" -trace "usb_dwc2_hreg0_action" -trace "usb_dwc2_wakeup_endpoint" -trace "usb_dwc2_work_timer" -trace "usb_dwc2_reset_enter" -trace "usb_dwc2_reset_hold" -trace "usb_dwc2_reset_exit"
+# -trace "usb_hub*"
+# -trace "usb_packet*"
+# -trace "usb_desc*"
 
 if [ "$SERENITY_ARCH" != "aarch64" ]; then
     if [ "${SERENITY_SPICE}" ] && "${SERENITY_QEMU_BIN}" -chardev help | grep -iq spice; then
