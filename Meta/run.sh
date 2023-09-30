@@ -351,7 +351,6 @@ $SERENITY_BOOT_DRIVE
 -name SerenityOS
 -d guest_errors
 -usb
--device usb-kbd
 -device usb-mouse
 $SERENITY_SPICE_SERVER_CHARDEV
 "

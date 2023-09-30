@@ -12,6 +12,7 @@
 #include <Kernel/Bus/USB/DWC2/DWC2Controller.h>
 #include <Kernel/Bus/USB/USBRequest.h>
 #include <Kernel/Memory/TypedMapping.h>
+#include <Kernel/Tasks/Process.h>
 
 #if ARCH(AARCH64)
 #    include <Kernel/Arch/aarch64/RPi/MMIO.h>
@@ -238,19 +239,65 @@ ErrorOr<void> DWC2Controller::initialize()
 
     // dwc2_reset();
 
+    TRY(spawn_async_poll_process());
+    TRY(spawn_port_process());
+
     m_root_hub = TRY(DWC2RootHub::try_create(*this));
     TRY(m_root_hub->setup({}));
 
-    // TODO: Call this in a loop on a seperate thread.
-    // while (true)
-    m_root_hub->check_for_port_updates();
+    // // TODO: Call this in a loop on a seperate thread.
+    // // while (true)
+    // m_root_hub->check_for_port_updates();
 
-    m_root_hub->check_for_port_updates();
+    // m_root_hub->check_for_port_updates();
 
-    m_root_hub->check_for_port_updates();
+    // m_root_hub->check_for_port_updates();
 
-    m_root_hub->check_for_port_updates();
+    // m_root_hub->check_for_port_updates();
 
+    return {};
+}
+
+ErrorOr<void> DWC2Controller::spawn_port_process()
+{
+    TRY(Process::create_kernel_process("DWC2 Hot Plug Task"sv, [&] {
+        while (!Process::current().is_dying()) {
+            if (m_root_hub)
+                m_root_hub->check_for_port_updates();
+
+            (void)Thread::current()->sleep(Duration::from_seconds(1));
+        }
+        Process::current().sys$exit(0);
+        VERIFY_NOT_REACHED();
+    }));
+    return {};
+}
+
+ErrorOr<void> DWC2Controller::spawn_async_poll_process()
+{
+    // TRY(Process::create_kernel_process("DWC2 Async Poll Task"sv, [&] {
+    //     u16 poll_interval_ms = 1024;
+    //     while (!Process::current().is_dying()) {
+    //         {
+    //             SpinlockLocker locker { m_async_lock };
+    //             for (OwnPtr<AsyncTransferHandle>& handle : m_active_async_transfers) {
+    //                 if (handle != nullptr) {
+    //                     poll_interval_ms = min(poll_interval_ms, handle->ms_poll_interval);
+    //                     QueueHead* qh = handle->qh;
+    //                     for (auto td = qh->get_first_td(); td != nullptr && !td->active(); td = td->next_td()) {
+    //                         if (td->next_td() == nullptr) { // Finished QH
+    //                             handle->transfer->invoke_async_callback();
+    //                             qh->reinitialize(); // Set the QH to be active again
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //         (void)Thread::current()->sleep(Duration::from_milliseconds(poll_interval_ms));
+    //     }
+    //     Process::current().sys$exit(0);
+    //     VERIFY_NOT_REACHED();
+    // }));
     return {};
 }
 
@@ -385,6 +432,8 @@ ErrorOr<size_t> DWC2Controller::submit_control_transfer(Transfer& transfer)
 
     m_csr_regs->host_mode_regs.HC[channel].HCCHAR.multi_count = 1;
     m_csr_regs->host_mode_regs.HC[channel].HCCHAR.channel_enable = 1;
+
+    dbgln("Done submit_control_transfer");
 
     // hcint = m_csr_regs->host_mode_regs.HC[channel].HCINT;
     // dbgln("HCINT: 0x{:x}", hcint);

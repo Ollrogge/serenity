@@ -40,6 +40,8 @@ private:
     explicit DWC2Controller(ControlAndStatusRegisters volatile*);
 
     void reset_port(u8);
+    ErrorOr<void> spawn_async_poll_process();
+    ErrorOr<void> spawn_port_process();
 
     void dwc2_reset();
 

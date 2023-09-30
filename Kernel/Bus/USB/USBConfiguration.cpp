@@ -73,6 +73,8 @@ ErrorOr<void> USBConfiguration::enumerate_interfaces()
         interface_descriptor += interface_descriptor->number_of_endpoints * sizeof(USBEndpointDescriptor);
     }
 
+    dbgln("enumerate interfaces end");
+
     return {};
 }
 
