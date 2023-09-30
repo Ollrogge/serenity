@@ -470,69 +470,66 @@ ErrorOr<void> DWC2Controller::submit_async_interrupt_transfer(NonnullLockRefPtr<
     auto& transfer = *transfer_ptr;
     Pipe& pipe = transfer.pipe(); // Short circuit the pipe related to this transfer
 
-    dbgln_if(DWC2_DEBUG, "DWC2: Received async interrupt transfer {}. Root Hub is at address {}. Pipe type is {}", pipe.device_address(), m_root_hub->device_address(), to_underlying(pipe.type()));
+    // dbgln_if(DWC2_DEBUG, "DWC2: Received async interrupt transfer {}. Root Hub is at address {}. Pipe type is {}", pipe.device_address(), m_root_hub->device_address(), to_underlying(pipe.type()));
 
     int channel = 0; // We actually have 16 channels available
 
     // clear the xfer complete bit
     m_csr_regs->host_mode_regs.HC[channel].HCINT = 1;
 
-    while (true) {
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.raw = 0;
+    // while (true) {
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.raw = 0;
 
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.device_address = pipe.device_address();
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_number = pipe.endpoint_address();
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_direction = pipe.direction() == Pipe::Direction::In ? 1 : 0;
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.low_speed_device = pipe.device_speed() == Pipe::DeviceSpeed::LowSpeed ? 1 : 0;
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_type = to_underlying(pipe.type());
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.maximum_packet_size = pipe.max_packet_size();
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.channel_enable = 0;
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.channel_disable = 0;
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.device_address = pipe.device_address();
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_number = pipe.endpoint_address();
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_direction = pipe.direction() == Pipe::Direction::In ? 1 : 0;
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.low_speed_device = pipe.device_speed() == Pipe::DeviceSpeed::LowSpeed ? 1 : 0;
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.endpoint_type = to_underlying(pipe.type());
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.maximum_packet_size = pipe.max_packet_size();
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.channel_enable = 0;
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.channel_disable = 0;
 
-        // FIXME: Split control
+    // FIXME: Split control
 
-        // First we send the SETUP packet, which are always the first 8 bytes in the buffer of the transfer.
-        int packet_id = 0b10; // data1
+    // First we send the SETUP packet, which are always the first 8 bytes in the buffer of the transfer.
+    int packet_id = 0b10; // data1
 
-        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.raw = 0;
-        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.pid = packet_id;
-        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.transfer_size = transfer.transfer_data_size();
+    m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.raw = 0;
+    m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.pid = packet_id;
+    m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.transfer_size = transfer.transfer_data_size();
 
-        if (pipe.device_speed() == Pipe::DeviceSpeed::LowSpeed)
-            m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = (transfer.transfer_data_size() + 7) / 8;
-        else
-            m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = (transfer.transfer_data_size() + pipe.max_packet_size() - 1) / pipe.max_packet_size();
+    if (pipe.device_speed() == Pipe::DeviceSpeed::LowSpeed)
+        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = (transfer.transfer_data_size() + 7) / 8;
+    else
+        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = (transfer.transfer_data_size() + pipe.max_packet_size() - 1) / pipe.max_packet_size();
 
-        if (m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count == 0) {
-            m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = 1;
-        }
-
-        m_csr_regs->host_mode_regs.HC[channel].HCDMA = transfer.buffer_physical().get();
-
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.multi_count = 1;
-        m_csr_regs->host_mode_regs.HC[channel].HCCHAR.channel_enable = 1;
-
-        // TODO: While not transfer complete wait (or something)
-        u32 hcint = m_csr_regs->host_mode_regs.HC[channel].HCINT;
-        dbgln("HCINT: 0x{:x}", hcint);
-
-        // dbgln("Packet count after sending: {}", (u32)m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count);
-        // if (m_csr_regs->host_mode_regs.HC[channel].HCINT)
-        // dbgln("TODO: submit_async_interrupt_transfer");
-
-        if (hcint == 0x12) {
-            // NAK - XFERcomplete - channel halted
-            // clear NAK and XFERcomplete and try again
-            m_csr_regs->host_mode_regs.HC[channel].HCINT = 1 | (1 << 4);
-            Aarch64::Asm::wait_cycles(10000000);
-            continue;
-        } else {
-            m_csr_regs->host_mode_regs.HC[channel].HCINT = 1;
-            transfer.invoke_async_callback();
-            continue;
-        }
+    if (m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count == 0) {
+        m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count = 1;
     }
 
+    m_csr_regs->host_mode_regs.HC[channel].HCDMA = transfer.buffer_physical().get();
+
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.multi_count = 1;
+    m_csr_regs->host_mode_regs.HC[channel].HCCHAR.channel_enable = 1;
+
+    // TODO: While not transfer complete wait (or something)
+    u32 hcint = m_csr_regs->host_mode_regs.HC[channel].HCINT;
+    // dbgln("HCINT: 0x{:x}", hcint);
+
+    // dbgln("Packet count after sending: {}", (u32)m_csr_regs->host_mode_regs.HC[channel].HCTSIZ.packet_count);
+    // if (m_csr_regs->host_mode_regs.HC[channel].HCINT)
+    // dbgln("TODO: submit_async_interrupt_transfer");
+    // break;
+    if (hcint == 0x12) {
+        // NAK - XFERcomplete - channel halted
+        // clear NAK and XFERcomplete and try again
+        m_csr_regs->host_mode_regs.HC[channel].HCINT = 1 | (1 << 4);
+    } else {
+        m_csr_regs->host_mode_regs.HC[channel].HCINT = 1;
+        transfer.set_complete();
+    }
+
+    transfer.invoke_async_callback();
     return {};
 }
 
@@ -726,5 +723,4 @@ ErrorOr<void> DWC2Controller::clear_port_feature(Badge<DWC2RootHub>, u8 port, Hu
 
     return {};
 }
-
 }
