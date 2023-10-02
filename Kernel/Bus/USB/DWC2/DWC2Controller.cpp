@@ -10,6 +10,7 @@
 
 #include <Kernel/Arch/Delay.h>
 #include <Kernel/Bus/USB/DWC2/DWC2Controller.h>
+#include <Kernel/Bus/USB/USBManagement.h>
 #include <Kernel/Bus/USB/USBRequest.h>
 #include <Kernel/Memory/TypedMapping.h>
 #include <Kernel/Tasks/Process.h>
@@ -262,7 +263,7 @@ ErrorOr<void> DWC2Controller::spawn_port_process()
 {
     TRY(Process::create_kernel_process("DWC2 Hot Plug Task"sv, [&] {
         while (!Process::current().is_dying()) {
-            if (m_root_hub)
+            if (m_root_hub && USBManagement::the().m_drivers_registered)
                 m_root_hub->check_for_port_updates();
 
             (void)Thread::current()->sleep(Duration::from_seconds(1));
@@ -519,7 +520,7 @@ ErrorOr<void> DWC2Controller::submit_async_interrupt_transfer(NonnullLockRefPtr<
     auto& transfer = *transfer_ptr;
     Pipe& pipe = transfer.pipe(); // Short circuit the pipe related to this transfer
 
-    // dbgln_if(DWC2_DEBUG, "DWC2: Received async interrupt transfer {}. Root Hub is at address {}. Pipe type is {}", pipe.device_address(), m_root_hub->device_address(), to_underlying(pipe.type()));
+    dbgln_if(DWC2_DEBUG, "DWC2: Received async interrupt transfer {}. Root Hub is at address {}. Pipe type is {}", pipe.device_address(), m_root_hub->device_address(), to_underlying(pipe.type()));
 
     int channel = 0; // We actually have 16 channels available
 

@@ -30,6 +30,7 @@ public:
     ErrorOr<size_t> handle_control_transfer(Transfer& transfer);
 
     void check_for_port_updates() { m_hub->check_for_port_updates(); }
+    bool can_check_for_port_updates() { return m_hub->can_check_for_port_updates(); }
 
 private:
     NonnullLockRefPtr<DWC2Controller> m_dwc2_controller;
