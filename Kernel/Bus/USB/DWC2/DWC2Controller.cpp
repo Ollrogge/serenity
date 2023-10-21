@@ -263,7 +263,7 @@ ErrorOr<void> DWC2Controller::spawn_port_process()
 {
     TRY(Process::create_kernel_process("DWC2 Hot Plug Task"sv, [&] {
         while (!Process::current().is_dying()) {
-            if (m_root_hub && USBManagement::the().m_drivers_registered)
+            if (m_root_hub && USBManagement::the().drivers_initialized())
                 m_root_hub->check_for_port_updates();
 
             (void)Thread::current()->sleep(Duration::from_seconds(1));
@@ -517,6 +517,23 @@ ErrorOr<size_t> DWC2Controller::submit_bulk_transfer(Transfer&)
 }
 ErrorOr<void> DWC2Controller::submit_async_interrupt_transfer(NonnullLockRefPtr<Transfer> transfer_ptr, u16)
 {
+    dbgln_if(UHCI_DEBUG, "DWC2: Received interrupt transfer for address {}. Root Hub is at address {}.", transfer->pipe().device_address(), m_root_hub->device_address());
+
+    if (ms_interval == 0) {
+        return EINVAL;
+    }
+
+    auto async_transfer_handle = TRY(adopt_nonnull_own_or_enomem(new (nothrow) AsyncTransferHandle { transfer, ms_interval }));
+    {
+        SpinlockLocker locker { m_async_lock };
+        auto iter = find_if(m_active_async_transfers.begin(), m_active_async_transfers.end(), [](auto& handle) { return handle == nullptr; });
+        if (iter == m_active_async_transfers.end())
+            return ENOMEM;
+        *iter = move(async_handle);
+    }
+
+    return {};
+
     auto& transfer = *transfer_ptr;
     Pipe& pipe = transfer.pipe(); // Short circuit the pipe related to this transfer
 
