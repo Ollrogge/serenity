@@ -8,6 +8,7 @@
 #include <AK/Singleton.h>
 #include <Kernel/Boot/CommandLine.h>
 #include <Kernel/Bus/PCI/API.h>
+#include <Kernel/Bus/PCI/Access.h>
 #include <Kernel/Bus/PCI/Definitions.h>
 #include <Kernel/Bus/USB/DWC2/DWC2Controller.h>
 #include <Kernel/Bus/USB/Drivers/USBDriver.h>
@@ -17,6 +18,9 @@
 #include <Kernel/Sections.h>
 
 namespace Kernel::USB {
+
+extern "C" DriverInitFunction driver_init_table_start[];
+extern "C" DriverInitFunction driver_init_table_end[];
 
 static Singleton<USBManagement> s_the;
 READONLY_AFTER_INIT bool s_initialized_sys_fs_directory = false;
@@ -85,6 +89,17 @@ UNMAP_AFTER_INIT void USBManagement::initialize()
     }
 
     s_the.ensure_instance();
+}
+
+void USBManagement::initialize_drivers()
+{
+    if (!initialized())
+        return;
+
+    // Initialize all USB Drivers
+    for (auto* init_function = driver_init_table_start; init_function != driver_init_table_end; init_function++)
+        (*init_function)();
+    the().m_drivers_initialized = true;
 }
 
 void USBManagement::register_driver(NonnullLockRefPtr<Driver> driver)

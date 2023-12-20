@@ -85,9 +85,6 @@ extern "C" u8 start_of_safemem_atomic_text[];
 extern "C" u8 end_of_safemem_atomic_text[];
 #endif
 
-extern "C" USB::DriverInitFunction driver_init_table_start[];
-extern "C" USB::DriverInitFunction driver_init_table_end[];
-
 extern "C" u8 end_of_kernel_image[];
 
 multiboot_module_entry_t multiboot_copy_boot_modules_array[16];
@@ -393,9 +390,7 @@ void init_stage2(void*)
 
     auto boot_profiling = kernel_command_line().is_boot_profiling_enabled();
 
-    if (!PCI::Access::is_disabled()) {
-        USB::USBManagement::initialize();
-    }
+    USB::USBManagement::initialize();
     SysFSFirmwareDirectory::initialize();
 
     if (!PCI::Access::is_disabled()) {
@@ -416,9 +411,7 @@ void init_stage2(void*)
 
     AudioManagement::the().initialize();
 
-    // Initialize all USB Drivers
-    for (auto* init_function = driver_init_table_start; init_function != driver_init_table_end; init_function++)
-        (*init_function)();
+    USB::USBManagement::initialize_drivers();
 
     StorageManagement::the().initialize(kernel_command_line().is_force_pio(), kernel_command_line().is_nvme_polling_enabled());
     for (int i = 0; i < 5; ++i) {
