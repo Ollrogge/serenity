@@ -569,6 +569,32 @@ void ArgsParser::add_option(Optional<size_t>& value, char const* help_string, ch
     add_option(move(option));
 }
 
+void ArgsParser::add_option(Vector<size_t>& values, char const* help_string, char const* long_name, char short_name, char const* value_name, char separator, OptionHideMode hide_mode)
+{
+    Option option {
+        OptionArgumentMode::Required,
+        help_string,
+        long_name,
+        short_name,
+        value_name,
+        [&values, separator](StringView s) -> ErrorOr<bool> {
+            bool parsed_all_values = true;
+
+            s.for_each_split_view(separator, SplitBehavior::Nothing, [&](auto value) {
+                if (auto maybe_value = AK::StringUtils::convert_to_uint<size_t>(value); maybe_value.has_value())
+                    values.append(*maybe_value);
+                else
+                    parsed_all_values = false;
+            });
+
+            return parsed_all_values;
+        },
+        hide_mode
+    };
+
+    add_option(move(option));
+}
+
 void ArgsParser::add_option(Optional<ssize_t>& value, char const* help_string, char const* long_name, char short_name, char const* value_name, OptionHideMode hide_mode)
 {
     Option option {
@@ -586,7 +612,7 @@ void ArgsParser::add_option(Optional<ssize_t>& value, char const* help_string, c
     add_option(move(option));
 }
 
-void ArgsParser::add_option(Vector<size_t>& values, char const* help_string, char const* long_name, char short_name, char const* value_name, char separator, OptionHideMode hide_mode)
+void ArgsParser::add_option(Vector<ssize_t>& values, char const* help_string, char const* long_name, char short_name, char const* value_name, char separator, OptionHideMode hide_mode)
 {
     Option option {
         OptionArgumentMode::Required,
@@ -598,7 +624,7 @@ void ArgsParser::add_option(Vector<size_t>& values, char const* help_string, cha
             bool parsed_all_values = true;
 
             s.for_each_split_view(separator, SplitBehavior::Nothing, [&](auto value) {
-                if (auto maybe_value = AK::StringUtils::convert_to_uint<size_t>(value); maybe_value.has_value())
+                if (auto maybe_value = AK::StringUtils::convert_to_int<ssize_t>(value); maybe_value.has_value())
                     values.append(*maybe_value);
                 else
                     parsed_all_values = false;
