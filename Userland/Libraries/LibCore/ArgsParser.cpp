@@ -569,6 +569,23 @@ void ArgsParser::add_option(Optional<size_t>& value, char const* help_string, ch
     add_option(move(option));
 }
 
+void ArgsParser::add_option(Optional<ssize_t>& value, char const* help_string, char const* long_name, char short_name, char const* value_name, OptionHideMode hide_mode)
+{
+    Option option {
+        OptionArgumentMode::Required,
+        help_string,
+        long_name,
+        short_name,
+        value_name,
+        [&value](StringView s) -> ErrorOr<bool> {
+            value = s.to_number<ssize_t>();
+            return value.has_value();
+        },
+        hide_mode,
+    };
+    add_option(move(option));
+}
+
 void ArgsParser::add_option(Vector<size_t>& values, char const* help_string, char const* long_name, char short_name, char const* value_name, char separator, OptionHideMode hide_mode)
 {
     Option option {
