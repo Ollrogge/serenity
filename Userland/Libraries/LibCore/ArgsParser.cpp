@@ -517,6 +517,59 @@ template void ArgsParser::add_option(u16&, char const*, char const*, char, char 
 template void ArgsParser::add_option(u32&, char const*, char const*, char, char const*, OptionHideMode);
 template void ArgsParser::add_option(u64&, char const*, char const*, char, char const*, OptionHideMode);
 
+template<Integral I>
+void ArgsParser::add_option(Optional<I>& value, char const* help_string, char const* long_name, char short_name, char const* value_name, OptionHideMode hide_mode)
+{
+
+    Option option {
+        OptionArgumentMode::Required,
+        help_string,
+        long_name,
+        short_name,
+        value_name,
+        [&value](StringView view) -> ErrorOr<bool> {
+            value = view.to_number<I>();
+            return value.has_value();
+        },
+        hide_mode,
+    };
+    add_option(move(option));
+}
+
+template void ArgsParser::add_option(Optional<size_t>&, char const*, char const*, char, char const*, OptionHideMode);
+template void ArgsParser::add_option(Optional<off_t>&, char const*, char const*, char, char const*, OptionHideMode);
+
+template<Integral I>
+void ArgsParser::add_option(Vector<I>& values, char const* help_string, char const* long_name, char short_name, char const* value_name, char separator, OptionHideMode hide_mode)
+{
+
+    Option option {
+        OptionArgumentMode::Required,
+        help_string,
+        long_name,
+        short_name,
+        value_name,
+        [&values, separator](StringView s) -> ErrorOr<bool> {
+            bool parsed_all_values = true;
+
+            s.for_each_split_view(separator, SplitBehavior::Nothing, [&](auto value) {
+                if (auto maybe_value = value.template to_number<I>(); maybe_value.has_value())
+                    values.append(*maybe_value);
+                else
+                    parsed_all_values = false;
+            });
+
+            return parsed_all_values;
+        },
+        hide_mode
+    };
+
+    add_option(move(option));
+}
+
+template void ArgsParser::add_option(Vector<size_t>&, char const*, char const*, char, char const*, char, OptionHideMode);
+template void ArgsParser::add_option(Vector<off_t>&, char const*, char const*, char, char const*, char, OptionHideMode);
+
 void ArgsParser::add_option(double& value, char const* help_string, char const* long_name, char short_name, char const* value_name, OptionHideMode hide_mode)
 {
     Option option {
@@ -549,92 +602,6 @@ void ArgsParser::add_option(Optional<double>& value, char const* help_string, ch
         },
         hide_mode,
     };
-    add_option(move(option));
-}
-
-void ArgsParser::add_option(Optional<size_t>& value, char const* help_string, char const* long_name, char short_name, char const* value_name, OptionHideMode hide_mode)
-{
-    Option option {
-        OptionArgumentMode::Required,
-        help_string,
-        long_name,
-        short_name,
-        value_name,
-        [&value](StringView s) -> ErrorOr<bool> {
-            value = s.to_number<size_t>();
-            return value.has_value();
-        },
-        hide_mode,
-    };
-    add_option(move(option));
-}
-
-void ArgsParser::add_option(Vector<size_t>& values, char const* help_string, char const* long_name, char short_name, char const* value_name, char separator, OptionHideMode hide_mode)
-{
-    Option option {
-        OptionArgumentMode::Required,
-        help_string,
-        long_name,
-        short_name,
-        value_name,
-        [&values, separator](StringView s) -> ErrorOr<bool> {
-            bool parsed_all_values = true;
-
-            s.for_each_split_view(separator, SplitBehavior::Nothing, [&](auto value) {
-                if (auto maybe_value = AK::StringUtils::convert_to_uint<size_t>(value); maybe_value.has_value())
-                    values.append(*maybe_value);
-                else
-                    parsed_all_values = false;
-            });
-
-            return parsed_all_values;
-        },
-        hide_mode
-    };
-
-    add_option(move(option));
-}
-
-void ArgsParser::add_option(Optional<ssize_t>& value, char const* help_string, char const* long_name, char short_name, char const* value_name, OptionHideMode hide_mode)
-{
-    Option option {
-        OptionArgumentMode::Required,
-        help_string,
-        long_name,
-        short_name,
-        value_name,
-        [&value](StringView s) -> ErrorOr<bool> {
-            value = s.to_number<ssize_t>();
-            return value.has_value();
-        },
-        hide_mode,
-    };
-    add_option(move(option));
-}
-
-void ArgsParser::add_option(Vector<ssize_t>& values, char const* help_string, char const* long_name, char short_name, char const* value_name, char separator, OptionHideMode hide_mode)
-{
-    Option option {
-        OptionArgumentMode::Required,
-        help_string,
-        long_name,
-        short_name,
-        value_name,
-        [&values, separator](StringView s) -> ErrorOr<bool> {
-            bool parsed_all_values = true;
-
-            s.for_each_split_view(separator, SplitBehavior::Nothing, [&](auto value) {
-                if (auto maybe_value = AK::StringUtils::convert_to_int<ssize_t>(value); maybe_value.has_value())
-                    values.append(*maybe_value);
-                else
-                    parsed_all_values = false;
-            });
-
-            return parsed_all_values;
-        },
-        hide_mode
-    };
-
     add_option(move(option));
 }
 

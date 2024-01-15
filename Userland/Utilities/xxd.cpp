@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2020-2024, the SerenityOS developers.
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ */
+
 #include <AK/AllOf.h>
 #include <AK/CharacterTypes.h>
 #include <AK/StdLibExtras.h>
@@ -166,34 +172,32 @@ ErrorOr<int> serenity_main(Main::Arguments args)
     Optional<size_t> group_size_option;
     Optional<size_t> max_bytes;
     Optional<size_t> position_offset;
-    Optional<ssize_t> seek_offset;
+    Optional<off_t> seek_to;
     String c_include_file_style_variable_name;
+    StringView colorize_output_option;
 
     args_parser.add_positional_argument(path, "Input file", "input", Core::ArgsParser::Required::No);
-    args_parser.add_option(autoskip, "A single '*' replaces NUL-lines.", "autoskip", 'a');
-    args_parser.add_option(c_include_file_style, "Output in C include file style.", "include", 'i');
-    args_parser.add_option(capitalize_c_include_file_style, "Capitalize C include file style (-i).", "capitalize", 'C');
+    args_parser.add_option(autoskip, "'*' replaces nul-lines.", "autoskip", 'a');
     args_parser.add_option(binary_digit_formatting, "Binary digit formatting", "bits", 'b');
-    args_parser.add_option(plain_hexdump_style, "Plain hex dump style", "plain", 'p');
+    args_parser.add_option(capitalize_c_include_file_style, "Capitalize C include file style (-i).", "capitalize", 'C');
+    args_parser.add_option(line_length_option, "Amount of bytes shown per line (max 256)", "cols", 'c', "cols");
     args_parser.add_option(offset_in_decimal, "Show offset in decimal instead of hex", "decimal", 'd');
-    args_parser.add_option(line_length_option, "Octets per line", "cols", 'c', "cols");
     args_parser.add_option(little_endian_hexdump, "Little-endian hex dump", nullptr, 'e');
-    args_parser.add_option(uppercase_hex, "Use upper case hexh letters", "uppercase", 'u');
-
-    args_parser.add_option(group_size_option, "Separate the output of every <bytes> bytes", "groupsize", 'g', "bytes");
+    args_parser.add_option(group_size_option, "Separate the output of every n bytes", "groupsize", 'g', "n");
+    args_parser.add_option(c_include_file_style, "Output in C include file style.", "include", 'i');
     args_parser.add_option(max_bytes, "Truncate to fixed number of bytes", "len", 'l', "bytes");
-    args_parser.add_option(c_include_file_style_variable_name, "Set the variable name used in C include ouput (-i)", "name", 'n', "include_style");
-    args_parser.add_option(position_offset, "Add <off> to displayed file offset", "offset", 'o', "offset");
-    args_parser.add_option(seek_offset, "start at <seek> bytes absolute infile offset", "seek", 's', "[-]offset");
+    args_parser.add_option(c_include_file_style_variable_name, "Set variable name used in C include ouput (-i)", "name", 'n', "include_style");
+    args_parser.add_option(position_offset, "Add offset to displayed file position", nullptr, 'o', "offset");
+    args_parser.add_option(plain_hexdump_style, "Output in plain hex dump style", "plain", 'p');
+    args_parser.add_option(seek_to, "Seek to a byte offset", "seek", 's', "[-]offset");
+    args_parser.add_option(uppercase_hex, "Use upper case hex letters", nullptr, 'u');
+    args_parser.add_option(colorize_output_option, "Colorize output", nullptr, 'R', "when");
 
     args_parser.parse(args);
-
-    // todo: TRY vs MUST
 
     auto file = TRY(Core::File::open_file_or_standard_stream(path, Core::File::OpenMode::Read));
     auto file_size = TRY(file->size());
 
-    size_t read_limit = SIZE_MAX;
     auto display_style = DisplayStyle::Hex;
     size_t line_length_config = BYTES_PER_LINE_HEX;
     size_t group_size = GROUP_SIZE_HEX;
@@ -259,6 +263,11 @@ ErrorOr<int> serenity_main(Main::Arguments args)
         }
     }
 
+    // TODO: colorize output
+    if (!colorize_output_option.is_null()) {
+        outln("Colorizing output is not supported");
+    }
+
     Array<u8, BUFSIZ> contents;
     Bytes bytes;
     size_t total_bytes_read = 0x0;
@@ -266,8 +275,8 @@ ErrorOr<int> serenity_main(Main::Arguments args)
     bool is_input_remaining = true;
 
     // TODO: seek relative to current stdin file position
-    if (seek_offset.has_value()) {
-        auto offset = seek_offset.value();
+    if (seek_to.has_value()) {
+        auto offset = seek_to.value();
         total_bytes_read = offset < 0 ? file_size + offset : offset;
         TRY(file->seek(total_bytes_read, SeekMode::SetPosition));
     }
@@ -331,7 +340,7 @@ ErrorOr<int> serenity_main(Main::Arguments args)
 
             total_bytes_read += line_length_config;
 
-            if (total_bytes_read >= read_limit) {
+            if (max_bytes.has_value() && total_bytes_read >= max_bytes.value()) {
                 is_input_remaining = false;
                 break;
             }
