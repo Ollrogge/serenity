@@ -40,5 +40,6 @@ private:
     PixelOrder m_pixel_order;
 
     Framebuffer();
+    static void find_best_mode();
 };
 }

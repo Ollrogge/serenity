@@ -13,6 +13,33 @@
 
 namespace Kernel::RPi {
 
+void Framebuffer::find_best_mode()
+{
+
+    auto block_number = 0x0;
+    for (;;) {
+        struct __attribute__((aligned(16))) {
+            Mailbox::MessageHeader header;
+            FramebufferGetEdidBlockMboxMessage edid;
+            Mailbox::MessageTail tail;
+        } message_queue;
+
+        message_queue.header.set_queue_size(sizeof(message_queue));
+        message_queue.edid.block_number = block_number;
+        block_number++;
+
+        if (!Mailbox::the().send_queue(&message_queue, sizeof(message_queue))) {
+            dbgln("Framebuffer(): Mailbox send failed.");
+            return;
+        }
+        dbgln("Mailbox edid block return val: {} {}", message_queue.edid.status, message_queue.edid.edid_bock[4]);
+
+        if (message_queue.edid.status != 0) {
+            break;
+        }
+    }
+}
+
 Framebuffer::Framebuffer()
 {
     // FIXME: query HDMI for best mode
@@ -21,6 +48,8 @@ Framebuffer::Framebuffer()
     m_height = 720;
     m_depth = 32;
     m_initialized = false;
+
+    Framebuffer::find_best_mode();
 
     struct __attribute__((aligned(16))) {
         Mailbox::MessageHeader header;

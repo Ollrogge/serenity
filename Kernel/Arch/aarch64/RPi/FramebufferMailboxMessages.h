@@ -110,4 +110,18 @@ public:
 };
 static_assert(sizeof(FramebufferGetPitchMboxMessage) == 16);
 
+class FramebufferGetEdidBlockMboxMessage : public Mailbox::Message {
+public:
+    u32 block_number;
+    u32 status;
+    u8 edid_bock[128] = { 0 };
+    FramebufferGetEdidBlockMboxMessage()
+        : Mailbox::Message(0x30020, 4)
+    {
+        block_number = 0x0;
+        status = 0;
+    }
+};
+static_assert(sizeof(FramebufferGetEdidBlockMboxMessage) == 148);
+
 }
