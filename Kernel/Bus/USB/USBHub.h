@@ -91,6 +91,7 @@ public:
     ErrorOr<void> set_port_feature(u8, HubFeatureSelector);
 
     void check_for_port_updates();
+    bool can_check_for_port_updates();
 
 private:
     // Root Hub constructor

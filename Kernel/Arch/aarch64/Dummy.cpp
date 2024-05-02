@@ -19,7 +19,8 @@ namespace Kernel {
 
 void microseconds_delay(u32)
 {
-    TODO_AARCH64();
+    return;
+    // TODO_AARCH64();
 }
 
 }

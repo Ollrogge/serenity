@@ -32,6 +32,8 @@ set(KERNEL_SOURCES
     Bus/PCI/Device.cpp
     Bus/PCI/DeviceIdentifier.cpp
     Bus/USB/EHCI/EHCIController.cpp
+    Bus/USB/DWC2/DWC2Controller.cpp
+    Bus/USB/DWC2/DWC2RootHub.cpp
     Bus/USB/UHCI/UHCIController.cpp
     Bus/USB/UHCI/UHCIRootHub.cpp
     Bus/USB/Drivers/HID/MouseDriver.cpp
@@ -432,7 +434,7 @@ if ("${SERENITY_ARCH}" STREQUAL "x86_64")
 
         # TODO: Share these with the aarch64 build
         Interrupts/SpuriousInterruptHandler.cpp
-        kprintf.cpp        
+        kprintf.cpp
     )
 
     set(KERNEL_SOURCES
@@ -443,7 +445,7 @@ if ("${SERENITY_ARCH}" STREQUAL "x86_64")
 
     set(KERNEL_SOURCES
         ${KERNEL_SOURCES}
-        
+
         ${CMAKE_CURRENT_SOURCE_DIR}/Arch/x86_64/ASM_wrapper.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Arch/x86_64/CPU.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Arch/x86_64/CPUID.cpp
@@ -652,11 +654,11 @@ add_compile_options(-fstack-protector-strong)
 add_compile_options(-fno-exceptions)
 add_compile_options(-nostdlib)
 
-# Auto initialize trivial types on the stack, we use "pattern" as 
+# Auto initialize trivial types on the stack, we use "pattern" as
 # it's the only option portable across compilers going forward.
 #
 # This is designed to help avoid uninitialized variables bugs and
-# information disclosures coming from the kernel stack. 
+# information disclosures coming from the kernel stack.
 #
 # FIXME: It appears to conflict with something during the boot of the
 # aarch64 kernel, we should investigate and remove this special case.

@@ -27,11 +27,14 @@ ErrorOr<NonnullLockRefPtr<Device>> Device::try_create(USBController const& contr
     });
     TRY(device->enumerate_device());
 
+    dbgln("HOi");
+
     // Attempt to find a driver for this device. If one is found, we call the driver's
     // "probe" function, which initialises the local state for the device driver.
     // It is currently the driver's responsibility to search the configuration/interface
     // and take the appropriate action.
     for (auto& driver : USBManagement::the().available_drivers()) {
+        dbgln("searching for driver..");
         // FIXME: Some devices have multiple configurations, for which we may have a better driver,
         //        than the first we find, or we have a vendor specific driver for the device,
         //        so we want a prioritization mechanism here
@@ -42,7 +45,7 @@ ErrorOr<NonnullLockRefPtr<Device>> Device::try_create(USBController const& contr
         device->set_driver(driver);
         break;
     }
-
+    dbgln("returning from device try_create");
     return device;
 }
 
@@ -159,6 +162,8 @@ ErrorOr<void> Device::enumerate_device()
         TRY(device_configuration.enumerate_interfaces());
         m_configurations.append(device_configuration);
     }
+
+    dbgln("enumerate_device end");
 
     return {};
 }
